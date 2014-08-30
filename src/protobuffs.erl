@@ -320,7 +320,7 @@ decode_value(Bytes, ?TYPE_VARINT, ExpectedType) ->
 decode_value(Bytes, ?TYPE_STRING, string) ->
     {Length, Rest} = decode_varint(Bytes),
     {Value,Rest1} = split_binary(Rest, Length),
-    {[C || <<C/utf8>> <= Value],Rest1};
+    {unicode_str([C || <<C/utf8>> <= Value]),Rest1};
 decode_value(Bytes, ?TYPE_STRING, bytes) ->
     {Length, Rest} = decode_varint(Bytes),
     split_binary(Rest, Length);
@@ -416,3 +416,8 @@ decode_varint(<<1:1, I:7, Rest/binary>>, Int, Depth) ->
     decode_varint(Rest, (I bsl Depth) bor Int, Depth + 7);
 decode_varint(Bin, Int, Depth) ->
     erlang:error(badarg, [Bin, Int, Depth]).
+
+%% @hidden
+-spec unicode_str(String :: list()) -> list().
+unicode_str(String) ->
+    erlang:binary_to_list(unicode:characters_to_binary(String)).
