@@ -103,30 +103,36 @@ generate_source(ProtoFile,Options) when is_list(ProtoFile) ->
 
 %% @hidden
 parse_imports(Parsed, Path) ->
-    parse_imports(Parsed, Path, []).
+    parse_imports(Parsed, Path, [], []).
 
 %% @hidden
-parse_imports([], _Path, Acc) ->
+parse_imports([], _Path, Acc, _ImportAcc) ->
     lists:reverse(Acc);
-parse_imports([{import, File} = Head | Tail], Path, Acc) ->
-    case protobuffs_file:path_open(Path, File, [read]) of
-    {ok, F, Fullname} ->
-        file:close(F),
-        {ok,String} = parse_file(Fullname),
-        {ok,FirstParsed} = parse_string(String),
-        Parsed = lists:append(FirstParsed, [file_boundary | Tail]),
-        parse_imports(Parsed, Path, [Head | Acc]);
-    {error, Error} ->
-        error_logger:error_report([
-                       "Could not do import",
-                       {import, File},
-                       {error, Error},
-                       {path, Path}
-                      ]),
-        parse_imports(Tail, Path, [Head | Acc])
+parse_imports([{import, File} = Head | Tail], Path, Acc, ImportAcc) ->
+    FileName = filename:basename(File),
+    case lists:member(FileName, ImportAcc) of
+    false ->
+        case protobuffs_file:path_open(Path, File, [read]) of
+        {ok, F, Fullname} ->
+            file:close(F),
+            {ok,String} = parse_file(Fullname),
+            {ok,FirstParsed} = parse_string(String),
+            Parsed = lists:append(FirstParsed, [file_boundary | Tail]),
+            parse_imports(Parsed, Path, [Head | Acc], [FileName | ImportAcc]);
+        {error, Error} ->
+            error_logger:error_report([
+                "Could not do import",
+                {import, File},
+                {error, Error},
+                {path, Path}
+            ]),
+            parse_imports(Tail, Path, [Head | Acc], ImportAcc)
+        end;
+    _ ->
+        parse_imports(Tail, Path, Acc, ImportAcc)
     end;
-parse_imports([Head | Tail], Path, Acc) ->
-    parse_imports(Tail, Path, [Head | Acc]).
+parse_imports([Head | Tail], Path, Acc, ImportAcc) ->
+    parse_imports(Tail, Path, [Head | Acc], ImportAcc).
 
 %% @hidden
 output(Basename, MessagesRaw, RawEnums, Options) ->
