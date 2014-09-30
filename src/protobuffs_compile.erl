@@ -68,7 +68,7 @@ scan_file(ProtoFile,Options) when is_atom(ProtoFile) ->
 scan_string(String,Basename,Options) ->
     {ok,FirstParsed} = parse_string(String),
     ImportPaths = ["./", "src/" | proplists:get_value(imports_dir, Options, [])],
-    Parsed = parse_imports(FirstParsed, ImportPaths),
+    Parsed = parse_imports(FirstParsed, ImportPaths, Basename),
     Collected = collect_full_messages(Parsed),
     Messages = resolve_types(Collected#collected.msg,Collected#collected.enum),
     output(Basename, Messages, Collected#collected.enum, Options).
@@ -96,21 +96,21 @@ generate_source(ProtoFile,Options) when is_list(ProtoFile) ->
     {ok,String} = parse_file(ProtoFile),
     {ok,FirstParsed} = parse_string(String),
     ImportPaths = ["./", "src/" | proplists:get_value(imports_dir, Options, [])],
-    Parsed = parse_imports(FirstParsed, ImportPaths),
+    Parsed = parse_imports(FirstParsed, ImportPaths, Basename),
     Collected = collect_full_messages(Parsed),
     Messages = resolve_types(Collected#collected.msg,Collected#collected.enum),
     output_source(Basename, Messages, Collected#collected.enum, Options).
 
 %% @hidden
-parse_imports(Parsed, Path) ->
-    parse_imports(Parsed, Path, [], []).
+parse_imports(Parsed, Path, Basename) ->
+    parse_imports(Parsed, Path, [], [Basename]).
 
 %% @hidden
 parse_imports([], _Path, Acc, _ImportAcc) ->
     lists:reverse(Acc);
 parse_imports([{import, File} = Head | Tail], Path, Acc, ImportAcc) ->
-    FileName = filename:basename(File),
-    case lists:member(FileName, ImportAcc) of
+    Basename = filename:basename(File, ".proto") ++ "_pb",
+    case lists:member(Basename, ImportAcc) of
     false ->
         case protobuffs_file:path_open(Path, File, [read]) of
         {ok, F, Fullname} ->
@@ -118,7 +118,7 @@ parse_imports([{import, File} = Head | Tail], Path, Acc, ImportAcc) ->
             {ok,String} = parse_file(Fullname),
             {ok,FirstParsed} = parse_string(String),
             Parsed = lists:append(FirstParsed, [file_boundary | Tail]),
-            parse_imports(Parsed, Path, [Head | Acc], [FileName | ImportAcc]);
+            parse_imports(Parsed, Path, [Head | Acc], [Basename | ImportAcc]);
         {error, Error} ->
             error_logger:error_report([
                 "Could not do import",
